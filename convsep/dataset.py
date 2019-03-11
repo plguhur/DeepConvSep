@@ -23,11 +23,11 @@ import os
 import sys
 from os import listdir
 from os.path import isfile, join
-import cPickle as pickle
+import six; from six.moves import cPickle as pickle
 import random
 import re
 import multiprocessing
-import util
+import convsep.util as util
 import climate
 import itertools as it
 logging = climate.get_logger('dataset')
@@ -285,6 +285,7 @@ class LargeDataset(object):
             if self.save_mask:
                 self.batch_masks[0:self.num_points[self.findex+1]-self.num_points[self.findex]-self.idxbegin] = x['masks']
             if self.extra_features:
+                #self.batch_features[0:self.num_points[self.findex+1]-self.num_points[self.findex]-self.idxbegin] = x['features']
                 self.batch_features[0:self.num_points[self.findex+1]-self.num_points[self.findex]-self.idxbegin] = x['features']
             x=None
 
@@ -524,7 +525,8 @@ class LargeDataset(object):
         return msk
 
     def initFeatures(self,size):
-        features = np.zeros((size, self.context, self.extra_feat_size), dtype=self.tensortype)
+        #FIXME no hard coding
+        features = np.zeros((size, self.time_context, self.extra_feat_size, 2), dtype=self.tensortype)
         return features
 
     def saveBatches(self,batch_file):
@@ -556,7 +558,8 @@ class LargeDataset(object):
                         pitch=None
                     if self.extra_features:
                         feat = self.loadTensor(os.path.join(self.path_transform_in[self.dirid[i]],self.file_list[i].replace('_m_','_'+self.model+'_')))
-                        self.extra_feat_size = feat.shape[-1]
+                        #self.extra_feat_size = feat.shape[-1] #FIXME hard coded
+                        self.extra_feat_size = feat.shape[-2]
                         feat=None
                     if self.path_transform_in==self.path_transform_out:
                         return allmix.shape[-1], self.nsources * allmix.shape[-1]
@@ -689,7 +692,7 @@ class LargeDataset(object):
 
             return f_in
         else:
-            logging.info('File does not exist: %s'+path)
+            logging.info('File does not exist: '+path)
             return -1
 
     def get_shape(self,shape_file):
@@ -906,17 +909,13 @@ class LargeDatasetMulti(LargeDataset):
         log_in=False, log_out=False, mult_factor_in=1., mult_factor_out=1.,nsources=2, pitch_norm=127,nprocs=2,jump=0):
         self.prefix_in = prefix_in
         self.prefix_out = prefix_out
+        self.pitch_code = 'p'
         super(LargeDatasetMulti, self).__init__(path_transform_in=path_transform_in, path_transform_out=path_transform_out, sampleRate=sampleRate, exclude_list=exclude_list, nsamples=nsamples, extra_features=extra_features, model=model, context=context,
             batch_size=batch_size, batch_memory=batch_memory, time_context=time_context, overlap=overlap, tensortype=tensortype, scratch_path=scratch_path, nsources=nsources,jump=jump,
             log_in=log_in, log_out=log_out, mult_factor_in=mult_factor_in, mult_factor_out=mult_factor_out,pitched=pitched,save_mask=save_mask,pitch_norm=pitch_norm,nprocs=nprocs)
 
-    def loadPitch(self,id):
-        if self.pitch_code is None:
-            self.pitch_code = 'g'
-        return self.loadTensor(os.path.join(self.path_transform_in[self.dirid[id]],self.file_list[id].replace(self.prefix_in+'_m_','_'+self.pitch_code+'_')))
-
     def load_extra_features(self,id):
-        return self.loadTensor(os.path.join(self.path_transform_in[self.dirid[id]],self.file_list[id].replace(self.prefix_in+'_m_','_'+self.model+'_')))
+        return self.loadTensor(os.path.join(self.path_transform_in[self.dirid[id]],self.file_list[id].replace(self.prefix_in+'_m_',self.prefix_in+'_'+self.model+'_')))
 
     def loadInputOutput(self,id):
         """
@@ -953,7 +952,7 @@ class LargeDatasetMulti(LargeDataset):
                 features = []
 
             #loads the .data fft file from the hard drive
-            allmixinput,allmixoutput = self.loadInputOutput(id)
+            allmixinput, allmixoutput = self.loadInputOutput(id)
 
             if self.pitched or self.save_mask:
                 allpitch = self.loadPitch(id)
@@ -994,9 +993,13 @@ class LargeDatasetMulti(LargeDataset):
 
                         if self.extra_features:
                             j=0
-                            while (i-j*self.jump-1)>=0 and j<self.context:
-                                features[i-idxbegin,self.context-j-1, :] = allfeatures[i-j*self.jump-1,:]
-                                j=j+1
+                            features[i-idxbegin] = allfeatures[:,start:start+self.time_context,:]
+                            # while (i-j*self.jump-1)>=0 and j<self.time_context:
+                            #     print(features.shape)
+                            #     print(allfeatures.shape)
+                            #     #FIXME should we center the context?
+                            #     features[i-idxbegin,self.context-j-1, :] = allfeatures[i-j*self.jump-1,:]
+                            #     j=j+1
 
                         if self.pitched:
                             pitches[i-idxbegin, :, :allmixinput.shape[1], :] = self.buildPitch(allminput,allpitch,start,start+self.time_context)
@@ -1045,6 +1048,13 @@ class LargeDatasetMulti(LargeDataset):
         msk = np.zeros((size, self.channels_out, self.time_context, self.input_size), dtype=self.tensortype)
         return msk
 
+
+    def initFeatures(self,size):
+        #FIXME no hard coding
+        features = np.zeros((size, self.channels_in, self.time_context, self.extra_feat_size, 2), dtype=self.tensortype)
+        return features
+
+
     def getFeatureSize(self):
         """
         Returns the feature size of the input and of the output to the neural network
@@ -1078,8 +1088,9 @@ class LargeDatasetMulti(LargeDataset):
                         self.npitches = 127 #midi notes/pitch granularity
                         pitch=None
                     if self.extra_features:
-                        feat = self.loadTensor(os.path.join(self.path_transform_in[self.dirid[i]],self.file_list[i].replace(self.prefix_in+'_m_','_'+self.model+'_')))
-                        self.extra_feat_size = feat.shape[-1]
+                        feat = self.loadTensor(os.path.join(self.path_transform_in[self.dirid[i]],self.file_list[i].replace(self.prefix_in+'_m_',self.prefix_in+'_'+self.model+'_')))
+                        #self.extra_feat_size = feat.shape[-1] #FIXME
+                        self.extra_feat_size = feat.shape[-2]
                         feat=None
 
 
@@ -1089,6 +1100,7 @@ class LargeDatasetMulti(LargeDataset):
         Read the list of .data files in path, compute how many examples we can create from each file, and initialize the output variables
         """
         self.path_transform_in = path_in
+
         if path_out is None:
             self.path_transform_out = self.path_transform_in
         else:
@@ -1144,7 +1156,9 @@ class LargeDatasetMulti(LargeDataset):
             self.batch_masks = np.zeros((self.batch_memory*self.batch_size,self.channels_out,self.time_context,self.input_size), dtype=self.tensortype)
 
         if self.extra_features == True:
-            self.batch_features = np.zeros((self.batch_memory*self.batch_size,self.context,self.extra_feat_size), dtype=self.tensortype)
+            #self.batch_features = np.zeros((self.batch_memory*self.batch_size,self.context,self.extra_feat_size), dtype=self.tensortype)
+            #FIXME
+            self.batch_features = np.zeros((self.batch_memory*self.batch_size,self.channels_in, self.time_context,self.extra_feat_size, 2), dtype=self.tensortype)
 
         self.loadBatches()
 

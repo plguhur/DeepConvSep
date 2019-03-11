@@ -56,7 +56,7 @@ if __name__=='__main__':
                                 mixSDR[4].append(k)
                             k=k+1
                     else:
-                        print 'mat file could not be found: '+f
+                        print('mat file could not be found: '+f)
 
 
         mix = np.array(mixSDR).T

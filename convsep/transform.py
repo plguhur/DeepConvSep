@@ -29,8 +29,7 @@ import itertools
 import math
 import random
 import re
-import util
-from util import *
+from convsep.util import *
 
 def sinebell(lengthWindow):
     """
@@ -65,7 +64,7 @@ class Transforms(object):
         The window function for the analysis
 
     """
-    def __init__(self, ttype='fft', bins=48, frameSize=1024, hopSize=256, tffmin=25, tffmax=18000, iscale = 'lin', suffix='', sampleRate=44100, window=np.hanning):
+    def __init__(self, ttype='fft', bins=48, frameSize=1024, hopSize=256, tffmin=25, tffmax=18000, iscale = 'lin', suffix='', sampleRate=44100, window=np.hanning, **kwargs):
         self.bins = bins
         self.frameSize = frameSize
         self.hopSize = hopSize
@@ -75,9 +74,9 @@ class Transforms(object):
         self.suffix=suffix
         self.sampleRate = sampleRate
         self.ttype = ttype
-        self.window = window(self.frameSize)
+        self.window = window(self.frameSize, **kwargs)
 
-    def compute_transform(self,audio, out_path=None, phase=False, save=True):
+    def compute_transform(self,audio, out_path=None, phase=False, save=True, suffix=""):
         """
         Compute the features for a given set of audio signals.
             The audio signal \"audio\" is a numpy array with the shape (t,i) - t is time and i is the id of signal
@@ -101,32 +100,35 @@ class Transforms(object):
         phs: 3D numpy array
             The features computed for each of the signals in the audio array, e.g. phase spectrograms
         """
+        if suffix == "":
+            suffix = self.suffix
+
         self.out_path = out_path
         for i in range(audio.shape[1]):
             if phase:
-                mag,ph=self.compute_file(audio[:,i], phase=True, sampleRate=self.sampleRate)
+                mag, ph = self.compute_file(audio[:,i], phase=True, sampleRate=self.sampleRate)
             else:
-                mag=self.compute_file(audio[:,i], phase=False, sampleRate=self.sampleRate)
-            if i==0:
+                mag = self.compute_file(audio[:,i], phase=False, sampleRate=self.sampleRate)
+            if i == 0:
                 mags = np.zeros((audio.shape[1],mag.shape[0],mag.shape[1])) #This line will be used when using without phase
                 if phase:
-                    if len(ph.shape)==3:
+                    if len(ph.shape) == 3:
                         phs = np.zeros((audio.shape[1],ph.shape[0],ph.shape[1],ph.shape[2]))
                     else:
                         phs = np.zeros((audio.shape[1],ph.shape[0],ph.shape[1]))
-            mags[i]=mag
+            mags[i] = mag
             if phase:
-                phs[i]=ph
+                phs[i] = ph
 
         if save and self.out_path is not None:
-            self.saveTensor(mags,'_'+self.suffix+'_m_')
+            self.saveTensor(mags,'_'+suffix+'_m_')
             if phase:
-                self.saveTensor(phs,'_'+self.suffix+'_p_')
+                self.saveTensor(phs,'_'+suffix+'_p_')
             mags = None
             phase = None
         else:
             if phase:
-                return mags,phs
+                return mags, phs
             else:
                 return mags
 
@@ -175,7 +177,7 @@ class Transforms(object):
             f_in = f_in.reshape(shape)
             return f_in
         else:
-            print 'Shape of loaded array does not match with the original shape of the transform'
+            print('Shape of loaded array does not match with the original shape of the transform')
 
     def save_shape(self,shape_file,shape):
         """
@@ -218,8 +220,13 @@ class transformFFT(Transforms):
 
     """
 
-    def __init__(self, ttype='fft', bins=48, frameSize=1024, hopSize=256, tffmin=25, tffmax=18000, iscale = 'lin', suffix='', sampleRate=44100, window=np.hanning):
-        super(transformFFT, self).__init__(ttype='fft', bins=bins, frameSize=frameSize, hopSize=hopSize, tffmin=tffmin, tffmax=tffmax, iscale = iscale, suffix=suffix, sampleRate=sampleRate, window=window)
+    def __init__(self, ttype='fft', bins=48, frameSize=1024, hopSize=256,
+            tffmin=25, tffmax=18000, iscale = 'lin', suffix='',
+            sampleRate=44100, window=np.hanning, **kwargs):
+        super(transformFFT, self).__init__(ttype='fft', bins=bins,
+                frameSize=frameSize, hopSize=hopSize, tffmin=tffmin,
+                tffmax=tffmax, iscale = iscale, suffix=suffix,
+                sampleRate=sampleRate, window=window, **kwargs)
 
     def compute_file(self,audio, phase=False, sampleRate=44100):
         """
@@ -394,6 +401,3 @@ def istft_norm(X, window=sinebell(2048),
     data = data / normalisationSeq
 
     return data
-
-
-

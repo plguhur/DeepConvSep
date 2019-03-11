@@ -24,14 +24,14 @@ import os
 import sys
 from os import listdir
 from os.path import isfile, join
-import cPickle as pickle
+import six; from six.moves import cPickle as pickle
 from bisect import bisect_left, bisect_right
 import itertools as it
 from scipy.interpolate import interp1d,InterpolatedUnivariateSpline
 
 import scipy.io.wavfile
 
-import Queue
+import six; from six.moves import queue as Queue
 import time
 import threading
 
@@ -202,7 +202,7 @@ def fixoverlap(slices):
 
 def getPitches(pitch,shape_time,interp='zero'):
     if len(pitch.shape)<2:
-        print 'shape of pitches should be (ninst,npitches,values)'
+        print('shape of pitches should be (ninst,npitches,values)')
     npitches = pitch.shape[1]
     ninst = pitch.shape[0]
     pitchr = np.zeros((ninst,npitches,shape_time))
@@ -278,13 +278,13 @@ def overlapadd(fbatch,obatch,nchunks,overlap=10):
         # m2=s1p/(s1p+s2p)
         # s1 = m1 * obatch[int(i/batch_size),int(i%batch_size),0,:,:]
         # s2 = m2 * obatch[int(i/batch_size),int(i%batch_size),0,:,:]
-        #print s1.shape
+        #print(s1.shape
         if start==0:
             sep1[0:time_context] = s1
             sep2[0:time_context] = s2
         else:
-            #print start+overlap
-            #print start+time_context
+            #print(start+overlap
+            #print(start+time_context
             sep1[start+overlap:start+time_context] = s1[overlap:time_context]
             sep1[start:start+overlap] = window[overlap:]*sep1[start:start+overlap] + window[:overlap]*s1[:overlap]
             sep2[start+overlap:start+time_context] = s2[overlap:time_context]
@@ -410,7 +410,7 @@ def getMidi(instrument,FilePath,beginTime,finishTime,samplerate,hop,window,timeS
                     l=l+1
                 if l>=nlines:
                     l=nlines-1
-                    print "no space to store note: "+str(i)
+                    print("no space to store note: "+str(i))
             melody[l,melodyBegin:melodyEnd]=str2midi(melNotesMIDI[i])
 
         melodyBegin = [np.maximum(0,mel - timeSpan_on) for mel in melTimeStampsBegin]
@@ -609,7 +609,7 @@ def read_mat(matfile):
         mat = io.loadmat(matfile)
         return mat
     else:
-        print 'mat file could not be found'
+        print('mat file could not be found')
         return
 
 
@@ -864,6 +864,3 @@ def mwf(spec,mixture,niter=10):
 #     # plt.show()
 #     audio = np.delete(audio,slices,axis=0)
 #     return audio
-
-
-

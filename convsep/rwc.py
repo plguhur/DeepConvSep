@@ -21,7 +21,7 @@
 import os
 import numpy as np
 from scipy import io
-import util
+import convsep.util as util
 
 class Instrument:
     """
@@ -77,7 +77,7 @@ class Instrument:
                 if f.endswith(".WAV"):
                     if (not self.styles) or (self.styles and any(s in f for s in self.allowed_styles)):
                         if (not self.allowed_dynamics) or (self.allowed_dynamics and any(s+'.WAV' in f for s in self.allowed_dynamics)):
-                            print f
+                            print(f)
                             if os.path.isfile(os.path.join(self.path,'mat',f.lower()+'.mat')):
                                 self.wav_list.append(os.path.join(self.path,'wav',str(self.instid)+str(case),f))
                                 self.notes_code.append(f.replace('.WAV','').lower())
@@ -98,7 +98,7 @@ class Instrument:
                                     self.notes_c.append(case)
                                     self.total_notes = self.total_notes + 1
                             else:
-                                print 'mat file could not be found: ' + os.path.join(self.path,'mat',f.lower()+'.mat')
+                                print('mat file could not be found: ' + os.path.join(self.path,'mat',f.lower()+'.mat'))
 
     def getNote(self,nr,dynamics='F',style='NO',case=1):
         for i in range(self.total_notes):
@@ -149,7 +149,7 @@ class Note:
             self.instid = mat['featureStruct'][0][0][4][0][0]
             self.length = self.noteEnd-self.noteStart
         else:
-            print 'mat file could not be found'
+            print('mat file could not be found')
 
     def getAudio(self,max_duration=0,sampleRate=44100):
         if not os.path.exists(self.wav_path):
@@ -186,5 +186,3 @@ class Note:
             else:
                 note = audio[int(self.noteStart*sampleRate):int((self.noteStart+max_duration)*sampleRate)]
         return note
-
-
