@@ -59,7 +59,7 @@ if __name__ == "__main__":
 
             if tt is None:
                 #initialize the transform object which will compute the STFT
-                tt = PhaseTransform(frameSize=4096, hopSize=1024, sampleRate=sampleRate, window=gaussian, std=0.4)
+                tt = PhaseTransform(frameSize=2048, hopSize=512, sampleRate=sampleRate, window=gaussian, std=0.4)
 
             assert sampleRate == 44100,"Sample rate needs to be 44100"
 
