@@ -2,3 +2,5 @@
 git+git://github.com/Lasagne/Lasagne.git
 palc
 climate
+keras
+tensorflow-gpu

@@ -77,10 +77,10 @@ class PhaseTransform(transformFFT):
         ph = np.angle(X)
         df_ph = np.pad(np.diff(ph, axis=1), ((0,0),(1,0)), 'constant')
         dt_ph = np.pad(np.diff(ph, axis=0), ((1,0),(0,0)), 'constant')
-        ph = np.stack([df_ph, dt_ph], axis=2)
-        print("Shape", mag.shape, audio.shape, ph.shape, X.shape)
+        phs = np.stack([ph, df_ph, dt_ph], axis=2)
+#         print("Shape", mag.shape, audio.shape, ph.shape, X.shape)
         X = None
-        return mag, ph
+        return mag, phs
 
     def compute_inverse(self, mag, phase, sampleRate=44100):
         """

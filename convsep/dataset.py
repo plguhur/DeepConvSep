@@ -109,9 +109,13 @@ class LargeDataset(object):
         To speed up batch fetching, the resulting batches are written to a scratch path (e.g. SSD disk)
 
     """
-    def __init__(self, path_transform_in=None, path_transform_out=None, sampleRate=44100, exclude_list=[], nsamples=0,
-        batch_size=64, batch_memory=8000, time_context=-1, overlap=5, tensortype=float, scratch_path=None, extra_features=False, model="", context=5,
-        log_in=False, log_out=False, mult_factor_in=1., mult_factor_out=1.,nsources=2,pitched=False,save_mask=False,pitch_norm=127,nprocs=2,jump=0):
+    def __init__(self, path_transform_in=None, path_transform_out=None, 
+            sampleRate=44100, exclude_list=[], nsamples=0,
+            batch_size=64, batch_memory=8000, time_context=-1, overlap=5, 
+            tensortype=float, scratch_path=None, extra_features=False, 
+            extra_feat_dim=1, model="", context=5, log_in=False, 
+            log_out=False, mult_factor_in=1., mult_factor_out=1.,
+            nsources=2,pitched=False,save_mask=False,pitch_norm=127,nprocs=2,jump=0):
 
         self.batch_size = batch_size
         self.nsources = nsources
@@ -132,6 +136,7 @@ class LargeDataset(object):
             self.path_transform_out = None
 
         self.extra_features = extra_features
+        self.extra_feat_dim = extra_feat_dim
         self.batch_memory = batch_memory #number of batches to keep in memory
         self.mult_factor_in = mult_factor_in
         self.mult_factor_out = mult_factor_out
@@ -526,7 +531,7 @@ class LargeDataset(object):
 
     def initFeatures(self,size):
         #FIXME no hard coding
-        features = np.zeros((size, self.time_context, self.extra_feat_size, 2), dtype=self.tensortype)
+        features = np.zeros((size, self.time_context, self.extra_feat_size, self.extra_feat_dim), dtype=self.tensortype)
         return features
 
     def saveBatches(self,batch_file):
@@ -638,7 +643,6 @@ class LargeDataset(object):
         logging.info("found %s files",str(self.total_files))
         self.num_points = np.cumsum(np.array([0]+[self.getNum(i) for i in range(self.total_files)], dtype=int))
         self.total_points = self.num_points[-1]
-        #print self.num_points
         self.input_size,self.output_size = self.getFeatureSize()
         self.initBatches()
 
@@ -904,13 +908,19 @@ class LargeDatasetMask2(LargeDataset):
         return mask
 
 class LargeDatasetMulti(LargeDataset):
-    def __init__(self, prefix_in="in",prefix_out="out", path_transform_in=None, path_transform_out=None, sampleRate=44100, exclude_list=[],nsamples=0, timbre_model_path=None,
-        batch_size=64, batch_memory=1000, time_context=-1, overlap=5, tensortype=float, scratch_path=None, extra_features=False, model="", context=5,pitched=False,save_mask=False,
-        log_in=False, log_out=False, mult_factor_in=1., mult_factor_out=1.,nsources=2, pitch_norm=127,nprocs=2,jump=0):
+    def __init__(self, prefix_in="in", prefix_out="out", 
+            path_transform_in=None, path_transform_out=None, sampleRate=44100, 
+            exclude_list=[],nsamples=0, timbre_model_path=None,
+            batch_size=64, batch_memory=1000, time_context=-1, overlap=5, 
+            tensortype=float, scratch_path=None, extra_features=False, extra_feat_dim=1,
+            model="", context=5,pitched=False,save_mask=False,
+            log_in=False, log_out=False, mult_factor_in=1., mult_factor_out=1.,
+            nsources=2, pitch_norm=127,nprocs=2,jump=0):
+        self.extra_feat_dim = extra_feat_dim
         self.prefix_in = prefix_in
         self.prefix_out = prefix_out
         self.pitch_code = 'p'
-        super(LargeDatasetMulti, self).__init__(path_transform_in=path_transform_in, path_transform_out=path_transform_out, sampleRate=sampleRate, exclude_list=exclude_list, nsamples=nsamples, extra_features=extra_features, model=model, context=context,
+        super(LargeDatasetMulti, self).__init__(path_transform_in=path_transform_in, path_transform_out=path_transform_out, sampleRate=sampleRate, exclude_list=exclude_list, nsamples=nsamples, extra_features=extra_features, model=model, context=context, extra_feat_dim=extra_feat_dim,
             batch_size=batch_size, batch_memory=batch_memory, time_context=time_context, overlap=overlap, tensortype=tensortype, scratch_path=scratch_path, nsources=nsources,jump=jump,
             log_in=log_in, log_out=log_out, mult_factor_in=mult_factor_in, mult_factor_out=mult_factor_out,pitched=pitched,save_mask=save_mask,pitch_norm=pitch_norm,nprocs=nprocs)
 
@@ -934,7 +944,7 @@ class LargeDatasetMulti(LargeDataset):
         if self.path_transform_in is not None and self.path_transform_out is not None:
             if idxbegin is None:
                 idxbegin = 0
-            if idxend is None or idxend==-1:
+            if idxend is None or idxend < -1:
                 idxend = self.num_points[id+1] - self.num_points[id]
 
             inputs,outputs = self.initOutput(idxend - idxbegin)
@@ -1050,8 +1060,8 @@ class LargeDatasetMulti(LargeDataset):
 
 
     def initFeatures(self,size):
-        #FIXME no hard coding
-        features = np.zeros((size, self.channels_in, self.time_context, self.extra_feat_size, 2), dtype=self.tensortype)
+        print(size, self.extra_feat_dim, self.tensortype, self.extra_feat_size)
+        features = np.zeros((size, self.channels_in, self.time_context, self.extra_feat_size, self.extra_feat_dim), dtype=self.tensortype)
         return features
 
 
@@ -1158,7 +1168,7 @@ class LargeDatasetMulti(LargeDataset):
         if self.extra_features == True:
             #self.batch_features = np.zeros((self.batch_memory*self.batch_size,self.context,self.extra_feat_size), dtype=self.tensortype)
             #FIXME
-            self.batch_features = np.zeros((self.batch_memory*self.batch_size,self.channels_in, self.time_context,self.extra_feat_size, 2), dtype=self.tensortype)
+            self.batch_features = np.zeros((self.batch_memory*self.batch_size,self.channels_in, self.time_context,self.extra_feat_size, self.extra_feat_dim), dtype=self.tensortype)
 
         self.loadBatches()
 
