@@ -48,7 +48,7 @@ def parmap(f, X, nprocs = multiprocessing.cpu_count()-1):
     """
     Paralellize the function f with the list X, using a number of CPU of nprocs
     """
-    nprocs = np.maximum(multiprocessing.cpu_count()-1,nprocs)
+    nprocs = min(multiprocessing.cpu_count()-1,nprocs)
     q_in   = multiprocessing.Queue(1)
     q_out  = multiprocessing.Queue()
 
