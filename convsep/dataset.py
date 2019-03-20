@@ -30,6 +30,7 @@ import multiprocessing
 import convsep.util as util
 import climate
 import itertools as it
+from tqdm import tqdm
 logging = climate.get_logger('dataset')
 climate.enable_default_logging()
 
@@ -48,7 +49,9 @@ def parmap(f, X, nprocs = multiprocessing.cpu_count()-1):
     """
     Paralellize the function f with the list X, using a number of CPU of nprocs
     """
-    nprocs = np.maximum(multiprocessing.cpu_count()-1,nprocs)
+    if nprocs == 1: # disable multiprocessing
+        return f(*X)
+
     q_in   = multiprocessing.Queue(1)
     q_out  = multiprocessing.Queue()
 
@@ -147,7 +150,8 @@ class LargeDataset(object):
         self.pitched = pitched
         self.save_mask = save_mask
         self.pitch_norm = pitch_norm
-        self.nprocs = nprocs
+        max_procs = multiprocessing.cpu_count() - 1
+        self.nprocs = min(nprocs, max_procs) 
         self.exclude_list = exclude_list
         self.nsamples = nsamples
 
@@ -1060,7 +1064,6 @@ class LargeDatasetMulti(LargeDataset):
 
 
     def initFeatures(self,size):
-        print(size, self.extra_feat_dim, self.tensortype, self.extra_feat_size)
         features = np.zeros((size, self.channels_in, self.time_context, self.extra_feat_size, self.extra_feat_dim), dtype=self.tensortype)
         return features
 
@@ -1070,7 +1073,7 @@ class LargeDatasetMulti(LargeDataset):
         Returns the feature size of the input and of the output to the neural network
         """
         if self.path_transform_in is not None and self.path_transform_out is not None:
-            for i in range(len(self.file_list)):
+            for i in tqdm(range(len(self.file_list))):
                 if os.path.isfile(os.path.join(self.path_transform_in[self.dirid[i]],self.file_list[i])):
 
                     allmix = self.loadTensor(os.path.join(self.path_transform_in[self.dirid[i]],self.file_list[i]))

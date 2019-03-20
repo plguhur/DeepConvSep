@@ -23,45 +23,45 @@ from phase_transform import PhaseTransform, transformFFT
 import numpy as np
 import re
 from scipy.signal import blackmanharris, gaussian
-import climate
 from tqdm import tqdm
+from argparse import ArgumentParser
+
 
 if __name__ == "__main__":
-    if len(sys.argv)>-1:
-        climate.add_arg('--db', help="the dataset path")
-        climate.add_arg('--feature_path', help="the path where to save the features")
-    db=None
-    kwargs = climate.parse_args()
-    if kwargs.__getattribute__('db'):
-        db = kwargs.__getattribute__('db')
-    else:
-        db='/home/user/Documents/Database/DSD100/'
-    if kwargs.__getattribute__('feature_path'):
-        feature_path = kwargs.__getattribute__('feature_path')
-    else:
-        feature_path=os.path.join(db,'transforms','t1')
+    parser = ArgumentParser(description="Compute and store the STFT")
+    parser.add_arg('--database', '-d', help="the dataset path")
+    parser.add_arg('--feature_path', default="results/features/", 
+            help="the path where to save the features")
+    parser.add_arg('--frame_size', default=4096, type=int,
+            help="frame size")
+    parser.add_arg('--sample_rate', default=44100, type=int,
+            help="sample rate")
+    parser.add_arg('-n', default=-1, 
+            help="Number of songs to treat")
+    args = parser.parse_args()
 
+    db = args.database
     assert os.path.isdir(db), "Please input the directory for the DSD100 dataset with --db path_to_DSD"
 
-    mixture_directory=os.path.join(db,'Mixtures')
-    source_directory=os.path.join(db,'Sources')
+    mixture_directory = os.path.join(db,'Mixtures')
+    source_directory = os.path.join(db,'Sources')
+    sampleRate = args.sample_rate
+    tt = PhaseTransform(frameSize=args.frame_size, hopSize=args.frame_size//4, 
+            sampleRate=sampleRate, window=blackmanharris)
 
-    tt = None
     dirlist = os.listdir(os.path.join(mixture_directory,"Dev"))
-    for f in tqdm(sorted(dirlist)):
+    for i, f in enumerate(tqdm(sorted(dirlist))):
+        # Check if we compute enough features
+        if i == args.n:
+            break
+
         if not f.startswith('.'):
-
             #read the input audio file
-            mix_raw, sampleRate, bitrate = util.readAudioScipy(os.path.join(mixture_directory,"Dev",f,"mixture.wav"))
+            mix_raw, sampleRate, bitrate = util.readAudioScipy(
+                    os.path.join(mixture_directory,"Dev",f,"mixture.wav"))
 
-            number_of_blocks=int(len(mix_raw)/(float(sampleRate)*30.0))
-            last_block=int(len(mix_raw)%float(sampleRate))
-
-            if tt is None:
-                #initialize the transform object which will compute the STFT
-                tt = PhaseTransform(frameSize=2048, hopSize=512, sampleRate=sampleRate, window=blackmanharris)
-
-            assert sampleRate == 44100,"Sample rate needs to be 44100"
+            number_of_blocks = int(len(mix_raw)/(float(sampleRate)*30.0))
+            last_block = int(len(mix_raw)%float(sampleRate))
 
             #Take chunks of 30 secs
             for i in range(number_of_blocks):
@@ -124,7 +124,7 @@ if __name__ == "__main__":
             audio[:,7]=others[sampleRate*30*(i+1):,1]
 
             #compute the STFT and write the .data file in the subfolder /transform/feature_folder/ of the DSD100 folder
-            tt.compute_transform(audio,os.path.join(feature_path,f+"_"+str(i+1)+'.data'),phase=True, suffix="in")
+            tt.compute_transform(audio,os.path.join(feature_path,f+"_"+str(i+1)+'.data'),phase=True, suffix="out")
             audio = None
             rest = None
             vocals = None
