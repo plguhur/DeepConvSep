@@ -49,8 +49,6 @@ def parmap(f, X, nprocs = multiprocessing.cpu_count()-1):
     """
     Paralellize the function f with the list X, using a number of CPU of nprocs
     """
-    if nprocs == 1: # disable multiprocessing
-        return f(*X)
 
     q_in   = multiprocessing.Queue(1)
     q_out  = multiprocessing.Queue()
@@ -917,10 +915,12 @@ class LargeDatasetMulti(LargeDataset):
             exclude_list=[],nsamples=0, timbre_model_path=None,
             batch_size=64, batch_memory=1000, time_context=-1, overlap=5, 
             tensortype=float, scratch_path=None, extra_features=False, extra_feat_dim=1,
+            extra_feat_size=2049,
             model="", context=5,pitched=False,save_mask=False,
             log_in=False, log_out=False, mult_factor_in=1., mult_factor_out=1.,
             nsources=2, pitch_norm=127,nprocs=2,jump=0):
         self.extra_feat_dim = extra_feat_dim
+        self.extra_feat_size = extra_feat_size
         self.prefix_in = prefix_in
         self.prefix_out = prefix_out
         self.pitch_code = 'p'
@@ -991,7 +991,11 @@ class LargeDatasetMulti(LargeDataset):
                 inputs[0,:,:allmixinput.shape[1],:] = allmixinput
                 outputs[0,:,:allmixoutput.shape[1],:] = allmixoutput
                 if self.extra_features:
-                    features[0,-1, :] = allfeatures
+                    try:
+                        features[0,-1, :] = allfeatures
+                    except ValueError:
+                        print(allfeatures.shape, features.shape, id, self.file_list[id], self.dirid[id])
+                        exit()
                 if self.pitched:
                     pitches[0, :, :allmixinput.shape[1],:] = self.buildPitch(allmixinput[0],allpitch,start,start+self.time_context)
                 if self.save_mask:
@@ -1076,15 +1080,23 @@ class LargeDatasetMulti(LargeDataset):
             for i in tqdm(range(len(self.file_list))):
                 if os.path.isfile(os.path.join(self.path_transform_in[self.dirid[i]],self.file_list[i])):
 
-                    allmix = self.loadTensor(os.path.join(self.path_transform_in[self.dirid[i]],self.file_list[i]))
-                    self.channels_in = allmix.shape[0]
-                    self.input_size=allmix.shape[-1]
-                    allmix = None
+                    #allmix = self.loadTensor(os.path.join(self.path_transform_in[self.dirid[i]],self.file_list[i]))
+                    allmix_shape = self.getShape(os.path.join(self.path_transform_in[self.dirid[i]],self.file_list[i]))
+                    self.channels_in = allmix_shape[0]
+                    #self.channels_in = allmix.shape[0]
+                    #self.input_size=allmix.shape[-1]
+                    self.input_size=allmix_shape[-1]
+                    #allmix = None
 
-                    allmixoutput = self.loadTensor(os.path.join(self.path_transform_out[self.dirid[i]],self.file_list[0].replace(self.prefix_in+'_m_',self.prefix_out+'_m_')))
-                    self.channels_out = allmixoutput.shape[0]
-                    self.output_size = allmixoutput.shape[-1]
-                    allmixoutput = None
+                    #allmixoutput = self.loadTensor(os.path.join(self.path_transform_out[self.dirid[i]],self.file_list[0].replace(self.prefix_in+'_m_',self.prefix_out+'_m_')))
+                    #self.channels_out = allmixoutput.shape[0]
+                    #self.output_size = allmixoutput.shape[-1]
+                    #allmixoutput = None
+
+                    allmixoutput_shape = self.getShape(os.path.join(self.path_transform_out[self.dirid[i]],self.file_list[0].replace(self.prefix_in+'_m_',self.prefix_out+'_m_')))
+                    self.channels_out = allmixoutput_shape[0]
+                    self.output_size = allmixoutput_shape[-1]
+                    allmixoutput_shape = None
 
                     assert self.channels_out % self.channels_in == 0, "number of outputs is not multiple of number of inputs"
 
@@ -1101,9 +1113,9 @@ class LargeDatasetMulti(LargeDataset):
                         self.npitches = 127 #midi notes/pitch granularity
                         pitch=None
                     if self.extra_features:
-                        feat = self.loadTensor(os.path.join(self.path_transform_in[self.dirid[i]],self.file_list[i].replace(self.prefix_in+'_m_',self.prefix_in+'_'+self.model+'_')))
+                        #feat = self.loadTensor(os.path.join(self.path_transform_in[self.dirid[i]],self.file_list[i].replace(self.prefix_in+'_m_',self.prefix_in+'_'+self.model+'_')))
                         #self.extra_feat_size = feat.shape[-1] #FIXME
-                        self.extra_feat_size = feat.shape[-2]
+                        #self.extra_feat_size = feat.shape[-2]
                         feat=None
 
 

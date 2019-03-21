@@ -29,15 +29,17 @@ from argparse import ArgumentParser
 
 if __name__ == "__main__":
     parser = ArgumentParser(description="Compute and store the STFT")
-    parser.add_arg('--database', '-d', help="the dataset path")
-    parser.add_arg('--feature_path', default="results/features/", 
+    parser.add_argument('--database', '-d', help="the dataset path")
+    parser.add_argument('--feature_path', default="results/features/", 
             help="the path where to save the features")
-    parser.add_arg('--frame_size', default=4096, type=int,
+    parser.add_argument('--frame_size', default=4096, type=int,
             help="frame size")
-    parser.add_arg('--sample_rate', default=44100, type=int,
+    parser.add_argument('--sample_rate', default=44100, type=int,
             help="sample rate")
-    parser.add_arg('-n', default=-1, 
+    parser.add_argument('--end', default=-1, 
             help="Number of songs to treat")
+    parser.add_argument('--start', default=0,
+            help="Start id")
     args = parser.parse_args()
 
     db = args.database
@@ -46,13 +48,16 @@ if __name__ == "__main__":
     mixture_directory = os.path.join(db,'Mixtures')
     source_directory = os.path.join(db,'Sources')
     sampleRate = args.sample_rate
+    feature_path = args.feature_path
     tt = PhaseTransform(frameSize=args.frame_size, hopSize=args.frame_size//4, 
             sampleRate=sampleRate, window=blackmanharris)
 
     dirlist = os.listdir(os.path.join(mixture_directory,"Dev"))
     for i, f in enumerate(tqdm(sorted(dirlist))):
         # Check if we compute enough features
-        if i == args.n:
+        if i < args.start:
+            continue
+        if i == args.end:
             break
 
         if not f.startswith('.'):

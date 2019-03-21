@@ -12,6 +12,9 @@ from convsep.dataset import LargeDatasetMulti
 import numpy as np
 import matplotlib.pyplot as plt
 import re
+from pathlib import Path
+import random
+
 
 def build_dnn(time_context=11, n_channels=2, freq_bins=2049, 
               n_hiddens=500):
@@ -47,7 +50,7 @@ def build_dnn(time_context=11, n_channels=2, freq_bins=2049,
     fc_r1 = Lambda(lambda x: K.permute_dimensions(x,(0,2,1)))(fc_r1)
     
     model = Model(inputs=[ax, df_ph, dt_ph], outputs=fc_r1)
-    model.compile(optimizer="adam", loss="mse", metrics=['mae', 'acc'])
+    model.compile(optimizer="adam", loss="mse", metrics=['mae', 'mse'])
     return model
 
 
@@ -58,15 +61,19 @@ class DataGenerator(Sequence):
                  n_channels=2, freq_bins=2049, n_sources=4, 
                  shuffle=True, source_id=0):
         'Initialization'
-        self.dataloader = LargeDatasetMulti(
-            path_transform_in=features_path, overlap=75,
-            nsources=n_sources, batch_size=batch_size,
-            batch_memory=batch_size*8, time_context=time_context,
-            nprocs=3, mult_factor_in=0.3, mult_factor_out=0.3,
-            tensortype='float32', extra_features=True, 
-            extra_feat_dim=3, model="p")
-        self.dataloader.extra_feat_size = freq_bins
-        self.n_points = self.dataloader.total_points
+#        self.dataloader = LargeDatasetMulti(
+#            path_transform_in=features_path, overlap=75,
+#            nsources=n_sources, batch_size=batch_size,
+#            batch_memory=batch_size*3, time_context=time_context,
+#            nprocs=3, mult_factor_in=0.3, mult_factor_out=0.3,
+#            tensortype='float32', extra_features=True, 
+#            extra_feat_dim=3, model="p", extra_feat_size=freq_bins)
+#        self.dataloader.extra_feat_size = freq_bins
+        self.features_path = features_path
+        self.backup_files = list(Path(self.features_path).glob("*_in_m_.data"))
+        self.initFiles()
+        self.n_points = len(self.backup_files)
+        print(self.n_points)
         self.time_context = time_context
         self.batch_size = batch_size
         self.freq_bins = freq_bins
@@ -74,16 +81,42 @@ class DataGenerator(Sequence):
         self.n_sources = n_sources
         self.source_id = source_id
         self.shuffle = shuffle
+        self.cursor = 0
+        self.preloaded = 0
+
+    def initFiles(self):
+        self.files = self.backup_files.copy()
+        random.shuffle(self.files)
 
     def __len__(self):
         'Denotes the number of batches per epoch'
-        return int(np.floor(self.n_points / self.batch_size))
+        return self.n_points
+        
+    def preload(self):
+        self.cursor = 0
+        if len(self.files) == 0:
+            self.initFiles()
+        filename = str(self.files.pop())
+        self.mag = load_tensor(filename, window=(0,self.time_context,0))
+        self.target = load_tensor(filename.replace("_in_m_.data", "_out_m_.data"),
+                window=(0, self.time_context, 0))
+        self.features = load_tensor(filename.replace("_in_m_.data", "_in_p_.data"),
+                window=(0, self.time_context, 0, 0))
+        self.preloaded = self.mag.shape[0]
+        if self.preloaded < self.batch_size:
+            print(filename, "contains not enough samples")
+            self.preload()
 
     def __getitem__(self, index):
         'Generate one batch of data'
-        mag, targets, features = self.dataloader()
+        if self.cursor + self.batch_size >= self.preloaded:
+            self.preload()
+
+        mag = self.mag[self.cursor:self.batch_size+self.cursor]
+        target = self.target[self.cursor:self.batch_size+self.cursor]
+        features = self.features[self.cursor:self.batch_size+self.cursor]
         ph, df_ph, dt_ph = features[..., 0], features[..., 1], features[..., 2]
-        y = targets[:, self.source_id:self.source_id+self.n_channels, 0, :]
+        y = target[:, self.source_id:self.source_id+self.n_channels, 0, :]
         return {'amplitude': mag, 
                 'df_phase': df_ph, 
                 'dt_phase': dt_ph}, y
@@ -93,12 +126,14 @@ class DataGenerator(Sequence):
 
     
 
-def plot_history(history):
+def plot_history(history, scale="log"):
+    f = plt.semilogy if scale == "log" else plt.plot
+
     if 'acc' in history.history:
         plt.figure(figsize=(20,10))
         plt.subplot(121)
-        plt.plot(history.history['acc'])
-        plt.plot(history.history['val_acc'])
+        f(history.history['acc'])
+        f(history.history['val_acc'])
         plt.title('model accuracy')
         plt.ylabel('accuracy')
         plt.xlabel('epoch')
@@ -106,8 +141,8 @@ def plot_history(history):
         plt.grid(True)
 
         plt.subplot(122)
-    plt.plot(history.history['loss'])
-    plt.plot(history.history['val_loss'])
+    f(history.history['loss'])
+    f(history.history['val_loss'])
     plt.title('model loss')
     plt.ylabel('loss')
     plt.xlabel('epoch')
@@ -178,7 +213,7 @@ def rolling_window(array, window=(0,), asteps=None, wsteps=None, axes=None, toen
     (1, 3, 2)
     
     This is useful for example to calculate the maximum in all (overlapping)
-    2x2 submatrixes:
+     submatrixes:
     >>> rolling_window(a, (2,2)).max((2,3))
     array([[4, 5],
            [7, 8]])
